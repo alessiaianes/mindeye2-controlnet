@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:2
-#SBATCH --nodelist=edu02
+#SBATCH --nodelist=edu01
 #SBATCH -o slurms/%j.out
 #SBATCH -e slurms/%j.err
 
@@ -17,7 +17,7 @@ unset LD_LIBRARY_PATH
 unset PYTHONPATH
 
 source ~/.bashrc
-conda activate testenv
+conda activate myenv
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export ACCELERATE_USE_CPU=False
