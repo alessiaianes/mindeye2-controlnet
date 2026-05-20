@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eyeinference
-#SBATCH -p ice4hpc
+#SBATCH -p edu-medium
 #SBATCH -t 02:00:00
 #SBATCH -N 1
 #SBATCH --ntasks=1
