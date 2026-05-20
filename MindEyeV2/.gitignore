@@ -3,6 +3,7 @@ train_logs/
 slurms/
 dataset/
 datasets/
+evals/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
