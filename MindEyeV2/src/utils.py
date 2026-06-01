@@ -250,15 +250,21 @@ def select_annotations(annots, random=True):
     txt = txt.flatten()
     return txt
 
-from generative_models.sgm.util import append_dims
-def unclip_recon(x, diffusion_engine, vector_suffix,
+from generative_models.sgm.util import append_dims #MODIFIED WITH VAE OUTPUT
+def unclip_recon(x, diffusion_engine, vector_suffix, init_latent=None,
                  num_samples=1, offset_noise_level=0.04):
     assert x.ndim==3
     if x.shape[0]==1:
         x = x[[0]]
     with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16), diffusion_engine.ema_scope():
-        z = torch.randn(num_samples,4,96,96).to(device) # starting noise, can change to VAE outputs of initial image for img2img
-
+        # z = torch.randn(num_samples,4,96,96).to(device) # starting noise, can change to VAE outputs of initial image for img2img
+        if init_latent is None:
+            # Comportamento originale: partiamo da rumore casuale
+            z = torch.randn(num_samples, 4, 96, 96).to(device) 
+        else:
+            # Comportamento Img2Img: partiamo dall'immagine latente sfocata
+            # L'output di MindEye è già nella scala giusta per SDXL
+            z = init_latent.to(device, dtype=torch.float16)
         # clip_img_tokenized = clip_img_embedder(image) 
         # tokens = clip_img_tokenized
         token_shape = x.shape

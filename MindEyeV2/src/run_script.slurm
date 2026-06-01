@@ -23,13 +23,13 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export ACCELERATE_USE_CPU=False
 
 # 1. Convertiamo il notebook in script
-jupyter nbconvert --to script recon_inference.ipynb
+jupyter nbconvert --to script recon_inference_claude.ipynb
 
 # 2. Ripuliamo in automatico le righe di installazione sporche di Jupyter
-sed -i '/get_ipython/d' recon_inference.py
+sed -i '/get_ipython/d' recon_inference_claude.py
 
 # 3. Eseguiamo il codice python
-python recon_inference.py \
+python recon_inference_claude.py \
     --data_path=datasets \
     --cache_dir=datasets \
     --model_name=final_subj01_pretrained_40sess_24bs \
