@@ -502,6 +502,8 @@ print("vector_suffix", vector_suffix.shape)
 import sys
 import types
 import torch.nn.functional as F
+import transformers
+from transformers import pipeline, AutoTokenizer
 
 # --- PATCH 1: MOCK XFORMERS ---
 # Create a fake module to avoid errors and use native attention from PyTorch
@@ -698,19 +700,39 @@ with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
             # break # Uncomment if you want to generate just 1 image
 
 # resize outputs before saving
+# imsize = 256
+# all_recons = transforms.Resize((imsize,imsize))(all_recons).float()
+# if blurry_recon: 
+#     all_blurryrecons = transforms.Resize((imsize,imsize))(all_blurryrecons).float()
+
+# # saving
+# print(all_recons.shape)
+# # ! wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/tree/main/evals/all_images.pt
+# # torch.save(all_images, "evals/all_images.pt")
+# if blurry_recon:
+#     torch.save(all_blurryrecons,f"evals/{model_name}/{model_name}_all_blurryrecons.pt")
+# torch.save(all_recons,f"evals/{model_name}/{model_name}_all_recons.pt")
+# torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt")
+# torch.save(all_clipvoxels,f"evals/{model_name}/{model_name}_all_clipvoxels.pt")
+# print(f"saved {model_name} outputs!")
+
+# if not utils.is_interactive():
+#     sys.exit(0)
+
+
+# resize outputs before saving
 imsize = 256
 all_recons = transforms.Resize((imsize,imsize))(all_recons).float()
 if blurry_recon: 
     all_blurryrecons = transforms.Resize((imsize,imsize))(all_blurryrecons).float()
 
+
 # saving
 print(all_recons.shape)
-# ! wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/tree/main/evals/all_images.pt
-# torch.save(all_images, "evals/all_images.pt")
 if blurry_recon:
     torch.save(all_blurryrecons,f"evals/{model_name}/{model_name}_all_blurryrecons.pt")
 torch.save(all_recons,f"evals/{model_name}/{model_name}_all_recons.pt")
-torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt")
+torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt") # <-- Qui salverà le caption GIA' MIGLIORATE!
 torch.save(all_clipvoxels,f"evals/{model_name}/{model_name}_all_clipvoxels.pt")
 print(f"saved {model_name} outputs!")
 

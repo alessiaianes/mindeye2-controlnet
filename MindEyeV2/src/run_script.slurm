@@ -11,7 +11,7 @@
 #SBATCH -o slurms/%j.out
 #SBATCH -e slurms/%j.err
 
-set -e   # ← interrompe tutto se un comando fallisce
+set -e
 
 unset LD_LIBRARY_PATH
 unset PYTHONPATH
@@ -27,10 +27,10 @@ export ACCELERATE_USE_CPU=False
 # ─────────────────────────────────────────────────────────────
 echo "===== [$(date)] START recon_inference ====="
 
-jupyter nbconvert --to script recon_inference_claude.ipynb
-sed -i '/get_ipython/d' recon_inference_claude.py
+jupyter nbconvert --to script recon_inference.ipynb
+sed -i '/get_ipython/d' recon_inference.py
 
-python recon_inference_claude.py \
+python recon_inference.py \
     --data_path=datasets \
     --cache_dir=datasets \
     --model_name=final_subj01_pretrained_40sess_24bs \
@@ -55,3 +55,21 @@ python enhanced_recon_inference.py \
     --cache_dir=datasets
 
 echo "===== [$(date)] END enhanced_recon_inference ====="
+
+# ─────────────────────────────────────────────────────────────
+# STEP 3 — canny_recon_inference  (controlnet separato)
+# ─────────────────────────────────────────────────────────────
+conda activate controlnet
+echo "===== [$(date)] START canny_recon_inference ====="
+
+
+sed -i '/get_ipython/d' canny_recon_inference.py
+python -c "import torch; torch.cuda.empty_cache()"
+
+
+python canny_recon_inference.py \
+    --model_name=final_subj01_pretrained_40sess_24bs \
+    --subj=1 \
+    --cache_dir=datasets
+
+echo "===== [$(date)] END canny_recon_inference ====="

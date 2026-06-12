@@ -4,12 +4,6 @@
 # In[ ]:
 
 
-
-
-
-# In[ ]:
-
-
 import os, sys, json, argparse
 # os.system('wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/evals/all_images.pt')
 import numpy as np, math
@@ -23,6 +17,8 @@ import torch.nn.functional as F
 import types
 from torchvision import transforms
 from accelerate import Accelerator   # ← rimosso DeepSpeedPlugin
+import transformers
+from transformers import pipeline, AutoTokenizer
 
 sys.path.append('generative_models/')
 import sgm
@@ -120,13 +116,15 @@ all_clipvoxels  = torch.load(f"evals/{model_name}/{model_name}_all_clipvoxels.pt
 all_blurryrecons= torch.load(f"evals/{model_name}/{model_name}_all_blurryrecons.pt")
 all_predcaptions= torch.load(f"evals/{model_name}/{model_name}_all_predcaptions.pt")
 
+
+
 # Resize a 768×768 per il passaggio SDXL
 all_recons       = transforms.Resize((768, 768))(all_recons).float()
 all_blurryrecons = transforms.Resize((768, 768))(all_blurryrecons).float()
 
 print(model_name)
 print(all_images.shape, all_recons.shape, all_clipvoxels.shape,
-      all_blurryrecons.shape, all_predcaptions.shape)
+      all_blurryrecons.shape, len(all_predcaptions))
 
 
 # In[ ]:
