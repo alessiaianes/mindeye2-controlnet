@@ -4,10 +4,10 @@
 # In[ ]:
 
 
-# conda env create -f env_config.yml --> from CLI
+# conda env create -f env.yml --> from CLI
 
 
-# In[1]:
+# In[ ]:
 
 
 import os
@@ -52,7 +52,52 @@ device = accelerator.device
 print("device:",device)
 
 
-# In[2]:
+# In[ ]:
+
+
+# import os
+# import sys
+# import json
+# import argparse
+# import numpy as np
+# import math
+# from einops import rearrange
+# import time
+# import random
+# import string
+# import h5py
+# from tqdm import tqdm
+# import webdataset as wds
+
+# import matplotlib.pyplot as plt
+# import torch
+# import torch.nn as nn
+# from torchvision import transforms
+# from accelerate import Accelerator
+
+# # SDXL unCLIP requires code from https://github.com/Stability-AI/generative-models/tree/main
+# sys.path.append('generative_models/')
+# import sgm
+# from generative_models.sgm.modules.encoders.modules import FrozenOpenCLIPImageEmbedder, FrozenOpenCLIPEmbedder2
+# from generative_models.sgm.models.diffusion import DiffusionEngine
+# from generative_models.sgm.util import append_dims
+# from omegaconf import OmegaConf
+
+
+
+# # tf32 data type is faster than standard float32
+# torch.backends.cuda.matmul.allow_tf32 = True
+
+# # custom functions #
+# import utils
+# from models import *
+
+# accelerator = Accelerator(split_batches=False, mixed_precision="fp16")
+# device = accelerator.device
+# print("device:",device)
+
+
+# In[ ]:
 
 
 # if running this interactively, can specify jupyter_args here for argparser to use
@@ -368,7 +413,7 @@ disable_first_stage_autocast = unclip_params["disable_first_stage_autocast"]
 offset_noise_level = unclip_params["loss_fn_config"]["params"]["offset_noise_level"]
 
 first_stage_config['target'] = 'sgm.models.autoencoder.AutoencoderKL'
-sampler_config['params']['num_steps'] = 38
+sampler_config['params']['num_steps'] = 75
 
 diffusion_engine = DiffusionEngine(network_config=network_config,
                        denoiser_config=denoiser_config,
@@ -402,9 +447,63 @@ print("vector_suffix", vector_suffix.shape)
 # In[ ]:
 
 
+# @torch.no_grad()
+# def _caption_refinement(samples, caption, diffusion_engine, vector_suffix,
+#                          strength=0.5, ddim_steps=20, guidance_scale=5.0):
+#     """
+#     Replica lo step di enhanced_recon_inference.ipynb:
+#     parte dall'output unCLIP (neuralmente puro) e lo raffina
+#     usando la caption come condizionamento testuale nel diffusion_engine.
+
+#     strength: 0.0 = output neurale invariato, 1.0 = massima influenza del testo
+#     """
+#     from generative_models.sgm.util import append_dims
+
+#     # Porta l'immagine [0,1] nello spazio latente del VAE
+#     x0 = samples.to(device_1, dtype=torch.float16) * 2.0 - 1.0  # [0,1] → [-1,1]
+#     z0 = diffusion_engine.encode_first_stage(x0.unsqueeze(0) if x0.dim() == 3 else x0)
+#     z0 = diffusion_engine.get_first_stage_encoding(z0)  # scala con scale_factor
+
+#     # Condizionamento testuale tramite il conditioner dell'engine
+#     # Il conditioner del unclip6 supporta sia image embedding che testo
+#     batch_txt = {
+#         "txt": [caption],
+#         "original_size_as_tuple": torch.ones(1, 2, dtype=torch.float16, device=device_1) * 768,
+#         "crop_coords_top_left": torch.zeros(1, 2, dtype=torch.float16, device=device_1),
+#     }
+#     try:
+#         out_txt = diffusion_engine.conditioner(batch_txt)
+#         c_txt = out_txt.get("crossattn", out_txt.get("vector", None))
+#     except Exception:
+#         # Fallback: usa get_learned_conditioning se il conditioner non supporta il testo
+#         c_txt = diffusion_engine.get_learned_conditioning([caption])
+
+#     uc_txt = diffusion_engine.get_learned_conditioning([""])
+
+#     # Img2img: aggiungi rumore al latente, poi fai denoise con il testo
+#     t_enc = int(strength * ddim_steps)
+#     sampler = diffusion_engine.sampler
+
+#     # Prepara latente rumoroso al timestep t_enc
+#     noise = torch.randn_like(z0)
+#     t = torch.tensor([t_enc], device=device_1)
+#     z_noisy = diffusion_engine.q_sample(z0, t, noise=noise)
+
+#     # Decode del latente raffinato
+#     samples_refined = diffusion_engine.decode_first_stage(z_noisy)
+#     samples_refined = (samples_refined / 2 + 0.5).clamp(0, 1)
+
+#     return samples_refined.squeeze(0)  # CHW [0,1]
+
+
+# In[ ]:
+
+
 import sys
 import types
 import torch.nn.functional as F
+import transformers
+from transformers import pipeline, AutoTokenizer
 
 # --- PATCH 1: MOCK XFORMERS ---
 # Create a fake module to avoid errors and use native attention from PyTorch
@@ -436,6 +535,7 @@ model.to(device_1)
 model.eval().requires_grad_(False)
 
 all_blurryrecons = None
+# all_images = None
 all_recons = None
 all_predcaptions = []
 all_clipvoxels = None
@@ -540,6 +640,7 @@ with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
                 samples = utils.unclip_recon(prior_out[[i]], 
                                  diffusion_engine,
                                  vector_suffix,
+                                 init_latent=blurry_image_enc[[i]],
                                  num_samples=num_samples_per_image)
                 if all_recons is None:
                     all_recons = samples.cpu()
@@ -585,7 +686,7 @@ with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
 
                         # -- Reconstructed image --
                         axes[2].imshow(transforms.ToPILImage()(samples[s].cpu()))
-                        axes[2].set_title("Reconstructd")
+                        axes[2].set_title("Reconstructed")
                         axes[2].axis('off')
 
 
@@ -599,20 +700,609 @@ with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
             # break # Uncomment if you want to generate just 1 image
 
 # resize outputs before saving
+# imsize = 256
+# all_recons = transforms.Resize((imsize,imsize))(all_recons).float()
+# if blurry_recon: 
+#     all_blurryrecons = transforms.Resize((imsize,imsize))(all_blurryrecons).float()
+
+# # saving
+# print(all_recons.shape)
+# # ! wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/tree/main/evals/all_images.pt
+# # torch.save(all_images, "evals/all_images.pt")
+# if blurry_recon:
+#     torch.save(all_blurryrecons,f"evals/{model_name}/{model_name}_all_blurryrecons.pt")
+# torch.save(all_recons,f"evals/{model_name}/{model_name}_all_recons.pt")
+# torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt")
+# torch.save(all_clipvoxels,f"evals/{model_name}/{model_name}_all_clipvoxels.pt")
+# print(f"saved {model_name} outputs!")
+
+# if not utils.is_interactive():
+#     sys.exit(0)
+
+
+# resize outputs before saving
 imsize = 256
 all_recons = transforms.Resize((imsize,imsize))(all_recons).float()
 if blurry_recon: 
     all_blurryrecons = transforms.Resize((imsize,imsize))(all_blurryrecons).float()
+
 
 # saving
 print(all_recons.shape)
 if blurry_recon:
     torch.save(all_blurryrecons,f"evals/{model_name}/{model_name}_all_blurryrecons.pt")
 torch.save(all_recons,f"evals/{model_name}/{model_name}_all_recons.pt")
-torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt")
+torch.save(all_predcaptions,f"evals/{model_name}/{model_name}_all_predcaptions.pt") # <-- Qui salverà le caption GIA' MIGLIORATE!
 torch.save(all_clipvoxels,f"evals/{model_name}/{model_name}_all_clipvoxels.pt")
 print(f"saved {model_name} outputs!")
 
 if not utils.is_interactive():
     sys.exit(0)
+
+
+# In[ ]:
+
+
+# # ╔══════════════════════════════════════════════════════════════════════════╗
+# # ║         CELLA NUOVA — ControlNet (native repo, SD1.5)                   ║
+# # ╚══════════════════════════════════════════════════════════════════════════╝
+
+# import os
+# import sys
+# from pathlib import Path
+
+# # 1. Trova il percorso assoluto della cartella in cui si trova QUESTO script (ovvero 'src')
+# src_path = Path(__file__).resolve().parent
+
+# # 2. Calcola il percorso esatto della cartella ControlNet (che ora è dentro 'src')
+# control_net_path = src_path / 'ControlNet'
+
+# # Trasformiamo i percorsi in stringhe per sys.path
+# str_src = str(src_path)
+# str_control_net = str(control_net_path)
+
+# # 3. Aggiungiamo 'src' al sys.path (per i tuoi import)
+# if str_src not in sys.path:
+#     sys.path.insert(0, str_src)
+
+# # 4. Aggiungiamo 'ControlNet' al sys.path (per ingannare gli script originali della repo)
+# if str_control_net not in sys.path:
+#     sys.path.insert(0, str_control_net)
+
+# import cv2
+# import einops
+# import numpy as np
+# from PIL import Image
+
+# import torch
+# from pytorch_lightning import seed_everything
+
+# # Import dalla repo originale — nessuna modifica ai file della repo
+# from ControlNet.annotator.util import resize_image, HWC3
+# from ControlNet.annotator.canny import CannyDetector
+# from ControlNet.annotator.midas import MidasDetector
+# from ControlNet.cldm.model import create_model, load_state_dict
+# from ControlNet.cldm.ddim_hacked import DDIMSampler
+
+# # ── Carica i modelli (una volta sola) ───────────────────────────────────────
+# apply_canny = CannyDetector()
+# apply_midas = MidasDetector()   # usa dpt_hybrid-midas-501f0c75.pt
+
+# # Canny model
+# canny_model = create_model('ControlNet/models/cldm_v15.yaml').cpu()
+# # canny_model.load_state_dict(
+# #     load_state_dict('ControlNet/models/control_sd15_canny.pth', location='cuda')
+# # )
+# canny_model.load_state_dict(
+#     load_state_dict('ControlNet/models/control_sd15_canny.pth', location='cuda'),
+#     strict=False
+# )
+# canny_model = canny_model.cuda()
+# canny_sampler = DDIMSampler(canny_model)
+
+# # Depth model
+# depth_model = create_model('ControlNet/models/cldm_v15.yaml').cpu()
+# # depth_model.load_state_dict(
+# #     load_state_dict('ControlNet/models/control_sd15_depth.pth', location='cuda')
+# # )
+# depth_model.load_state_dict(
+#     load_state_dict('ControlNet/models/control_sd15_depth.pth', location='cuda'),
+#     strict=False
+# )
+# depth_model = depth_model.cuda()
+# depth_sampler = DDIMSampler(depth_model)
+
+# print("ControlNet (native) ready!")
+
+# # ── Funzione di refinement — adattata da gradio_canny2image.py ──────────────
+# def refine_with_controlnet(
+#     recon_tensor,                    # CHW tensor [0,1] da MindEye2
+#     caption: str,
+#     use_caption: bool = True,
+#     ddim_steps: int = 25,
+#     strength: float = 1.0,          # control_scales — equivale a controlnet_conditioning_scale
+#     guidance_scale: float = 7.5,    # unconditional_guidance_scale
+#     image_resolution: int = 512,
+#     low_threshold: int = 100,       # soglie Canny (interi 0-255, come in OpenCV)
+#     high_threshold: int = 200,
+#     guess_mode: bool = False,
+#     seed: int = -1,
+#     a_prompt: str = "best quality, extremely detailed",
+#     n_prompt: str = "lowres, bad anatomy, worst quality, low quality",
+# ) -> torch.Tensor:
+# # refined = refine_with_controlnet(
+# #     recon_tensor=recon_tensor,
+# #     caption=caption,
+# #     use_caption=use_caption,
+# #     ddim_steps=40,            # era 25 — più step, più qualità
+# #     strength=0.6,             # era 1.0 — meno controllo rigido della struttura
+# #     guidance_scale=5.0,       # era 1.0 — anche senza caption, dai una direzione
+# #     low_threshold=50,         # era 100 — cattura più bordi dalla recon
+# #     high_threshold=150,       # era 200
+# #     a_prompt="photorealistic, high quality photograph, sharp focus, 8k",
+# #     n_prompt="painting, oil painting, artwork, illustration, sketch, "
+# #              "blurry, foggy, hazy, smoke, low quality, worst quality, "
+# #              "deformed, watermark, grainy, overexposed",
+# # ) -> torch.Tensor:
+#     """
+#     Replica il pattern di gradio_canny2image.py e gradio_depth2image.py
+#     adattato per ricevere un tensore CHW [0,1] invece di un numpy HWC.
+#     """
+
+#     # 1. Converti tensore → numpy HWC uint8 (formato atteso dalla repo)
+#     img_np = (recon_tensor.cpu().float().permute(1, 2, 0).numpy() * 255).clip(0, 255).astype(np.uint8)
+#     img_np = resize_image(HWC3(img_np), image_resolution)
+#     H, W, C = img_np.shape
+
+#     prompt = caption if use_caption else ""
+
+#     if seed == -1:
+#         seed = np.random.randint(0, 65535)
+#     seed_everything(seed)
+
+#     with torch.no_grad():
+
+#         # ── Ramo Canny ───────────────────────────────────────────────────────
+#         canny_map = apply_canny(img_np, low_threshold, high_threshold)
+#         canny_map = HWC3(canny_map)
+#         ctrl_canny = torch.from_numpy(canny_map.copy()).float().cuda() / 255.0
+#         ctrl_canny = einops.rearrange(ctrl_canny[None], 'b h w c -> b c h w').clone()
+
+#         cond_c = {
+#             "c_concat":   [ctrl_canny],
+#             "c_crossattn": [canny_model.get_learned_conditioning(
+#                 [prompt + (', ' + a_prompt if use_caption else '')] * 1
+#             )],
+#         }
+#         uncond_c = {
+#             "c_concat":   None if guess_mode else [ctrl_canny],
+#             "c_crossattn": [canny_model.get_learned_conditioning([n_prompt] * 1)],
+#         }
+
+#         canny_model.control_scales = (
+#             [strength * (0.825 ** float(12 - i)) for i in range(13)]
+#             if guess_mode else [strength] * 13
+#         )
+
+#         samples_c, _ = canny_sampler.sample(
+#             ddim_steps, 1, (4, H // 8, W // 8), cond_c,
+#             verbose=False, eta=0.0,
+#             unconditional_guidance_scale=guidance_scale,
+#             unconditional_conditioning=uncond_c,
+#         )
+#         out_canny = canny_model.decode_first_stage(samples_c)
+#         out_canny = (einops.rearrange(out_canny, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)[0]
+
+#         # ── Ramo Depth ───────────────────────────────────────────────────────
+#         depth_map, _ = apply_midas(img_np)
+#         depth_map = HWC3(depth_map)
+#         ctrl_depth = torch.from_numpy(depth_map.copy()).float().cuda() / 255.0
+#         ctrl_depth = einops.rearrange(ctrl_depth[None], 'b h w c -> b c h w').clone()
+
+#         cond_d = {
+#             "c_concat":    [ctrl_depth],
+#             "c_crossattn": [depth_model.get_learned_conditioning(
+#                 [prompt + (', ' + a_prompt if use_caption else '')] * 1
+#             )],
+#         }
+#         uncond_d = {
+#             "c_concat":    None if guess_mode else [ctrl_depth],
+#             "c_crossattn": [depth_model.get_learned_conditioning([n_prompt] * 1)],
+#         }
+
+#         depth_model.control_scales = (
+#             [strength * (0.825 ** float(12 - i)) for i in range(13)]
+#             if guess_mode else [strength] * 13
+#         )
+
+#         samples_d, _ = depth_sampler.sample(
+#             ddim_steps, 1, (4, H // 8, W // 8), cond_d,
+#             verbose=False, eta=0.0,
+#             unconditional_guidance_scale=guidance_scale,
+#             unconditional_conditioning=uncond_d,
+#         )
+#         out_depth = depth_model.decode_first_stage(samples_d)
+#         out_depth = (einops.rearrange(out_depth, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)[0]
+
+#     # 3. Combina i due output con media pesata e restituisci tensore CHW [0,1]
+#     blended = (out_canny.astype(np.float32) * 0.5 + out_depth.astype(np.float32) * 0.5).clip(0, 255).astype(np.uint8)
+#     return transforms.ToTensor()(Image.fromarray(blended))  # CHW [0,1]
+
+
+# In[ ]:
+
+
+# # ╔══════════════════════════════════════════════════════════════════════════╗
+# # ║              CELLA 12 — Loop di Refinement ControlNet                   ║
+# # ╚══════════════════════════════════════════════════════════════════════════╝
+
+# import gc
+
+# gc.collect()
+# torch.cuda.empty_cache()
+
+# # ── 1. Carica i risultati della cella 9 ─────────────────────────────────────
+# all_recons_fullres = torch.load(
+#     f"evals/{model_name}/{model_name}_all_recons_fullres.pt"
+# )
+# all_predcaptions = torch.load(
+#     f"evals/{model_name}/{model_name}_all_predcaptions.pt"
+# )
+
+# # Rileva automaticamente la modalità dal contenuto delle captions
+# use_caption = any(c != "" for c in all_predcaptions)
+# run_label   = "with_caption" if use_caption else "without_caption"
+# print(f"Modalità rilevata: {run_label}")
+
+# # ── 2. Loop di refinement ────────────────────────────────────────────────────
+# all_refined = None
+# os.makedirs(f"evals/{model_name}/images_refined_{run_label}", exist_ok=True)
+
+# for idx in tqdm(range(len(all_recons_fullres))):
+#     recon_tensor = all_recons_fullres[idx]
+#     caption      = str(all_predcaptions[idx])   # stringa vuota se ablation
+
+#     refined = refine_with_controlnet(
+#         recon_tensor=recon_tensor,
+#         caption=caption,
+#         use_caption=use_caption,
+#         ddim_steps=25,
+#         strength=1.0,
+#         guidance_scale=7.5 if use_caption else 1.0,
+#         low_threshold=100,
+#         high_threshold=200,
+#     )
+
+#     if all_refined is None:
+#         all_refined = refined[None]
+#     else:
+#         all_refined = torch.vstack((all_refined, refined[None]))
+
+#     # Figura comparativa: Originale | MindEye2 | ControlNet refined
+#     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+#     title = caption.capitalize() if use_caption else "[no caption]"
+#     fig.suptitle(title, fontsize=11)
+
+#     try:
+#         f_img = h5py.File(f'{data_path}/coco_images_224_float16.hdf5', 'r')
+#         orig  = torch.Tensor(f_img['images'][int(np.unique(test_images_idx)[idx])]).float()
+#         f_img.close()
+#         axes[0].imshow(transforms.ToPILImage()(orig))
+#     except Exception:
+#         axes[0].text(0.5, 0.5, "N/A", ha='center', va='center')
+#     axes[0].set_title("Originale"); axes[0].axis("off")
+
+#     axes[1].imshow(transforms.ToPILImage()(recon_tensor.float()))
+#     axes[1].set_title("MindEye2 Recon"); axes[1].axis("off")
+
+#     axes[2].imshow(transforms.ToPILImage()(refined.float()))
+#     axes[2].set_title(f"ControlNet ({run_label.replace('_', ' ')})")
+#     axes[2].axis("off")
+
+#     plt.tight_layout()
+#     plt.savefig(
+#         f"evals/{model_name}/images_refined_{run_label}/comparison_img{idx}.png",
+#         bbox_inches="tight", dpi=150
+#     )
+#     plt.close()
+
+# # ── 3. Salvataggio ───────────────────────────────────────────────────────────
+# all_refined_256 = transforms.Resize((256, 256))(all_refined).float()
+# torch.save(
+#     all_refined_256,
+#     f"evals/{model_name}/{model_name}_all_refined_{run_label}.pt"
+# )
+# print(f"Salvato: {all_refined_256.shape} → all_refined_{run_label}.pt")
+
+# # # ── 1. Carica i risultati della cella 9 ─────────────────────────────────────
+# # all_recons_fullres = torch.load(
+# #     f"evals/{model_name}/{model_name}_all_recons_fullres.pt"
+# # )  # shape: [N, 3, H, W], range [0,1]
+
+# # all_predcaptions = torch.load(
+# #     f"evals/{model_name}/{model_name}_all_predcaptions.pt"
+# # )  # numpy array di N stringhe
+
+# # print(f"Ricostruzioni caricate: {all_recons_fullres.shape}")
+# # print(f"Esempio caption: '{all_predcaptions[0]}'")
+
+# # # ── 2. Loop di refinement ────────────────────────────────────────────────────
+# # all_refined_with_caption    = None
+# # all_refined_without_caption = None
+
+# # os.makedirs(f"evals/{model_name}/images_refined", exist_ok=True)
+
+# # for idx in tqdm(range(len(all_recons_fullres))):
+# #     recon_tensor = all_recons_fullres[idx]       # CHW [0,1]
+# #     caption      = str(all_predcaptions[idx])
+
+# #     # Variante A: con caption
+# #     refined_cap = refine_with_controlnet(
+# #         recon_tensor=recon_tensor,
+# #         caption=caption,
+# #         use_caption=USE_CAPTION,
+# #         ddim_steps=25,
+# #         strength=1.0,
+# #         guidance_scale=7.5,
+# #         low_threshold=100,
+# #         high_threshold=200,
+# #     )
+
+# #     # # Variante B: senza caption (ablation)
+# #     # refined_nocap = refine_with_controlnet(
+# #     #     recon_tensor=recon_tensor,
+# #     #     caption=caption,
+# #     #     use_caption=False,
+# #     #     ddim_steps=25,
+# #     #     strength=1.0,
+# #     #     guidance_scale=1.0,  # CFG basso senza testo
+# #     #     low_threshold=100,
+# #     #     high_threshold=200,
+# #     # )
+
+# #     # Accumula
+# #     if all_refined_with_caption is None:
+# #         all_refined_with_caption    = refined_cap[None]
+# #         all_refined_without_caption = refined_nocap[None]
+# #     else:
+# #         all_refined_with_caption    = torch.vstack((all_refined_with_caption,    refined_cap[None]))
+# #         all_refined_without_caption = torch.vstack((all_refined_without_caption, refined_nocap[None]))
+
+# #     # ── Salva figura comparativa a 4 pannelli ────────────────────────────────
+# #     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+# #     fig.suptitle(caption.capitalize(), fontsize=11, wrap=True)
+
+# #     panels = [
+# #         (recon_tensor,   "MindEye2 Recon"),
+# #         (refined_cap,    "ControlNet\n+ caption"),
+# #         (refined_nocap,  "ControlNet\n- caption (ablation)"),
+# #     ]
+
+# #     # carica originale dal file hdf5 se ancora disponibile
+# #     try:
+# #         f_img = h5py.File(f'{data_path}/coco_images_224_float16.hdf5', 'r')
+# #         orig = torch.Tensor(f_img['images'][int(np.unique(test_images_idx)[idx])]).float()
+# #         f_img.close()
+# #         axes[0].imshow(transforms.ToPILImage()(orig))
+# #         axes[0].set_title("Originale")
+# #     except Exception:
+# #         axes[0].text(0.5, 0.5, "N/A", ha='center', va='center')
+# #         axes[0].set_title("Originale")
+# #     axes[0].axis("off")
+
+# #     for ax, (tensor, title) in zip(axes[1:], panels):
+# #         ax.imshow(transforms.ToPILImage()(tensor.float()))
+# #         ax.set_title(title)
+# #         ax.axis("off")
+
+# #     plt.tight_layout()
+# #     plt.savefig(
+# #         f"evals/{model_name}/images_refined/comparison_img{idx}.png",
+# #         bbox_inches="tight", dpi=150
+# #     )
+# #     plt.close()
+
+# # print("Refinement completato!")
+
+# # # ── 3. Salvataggio ───────────────────────────────────────────────────────────
+# # imsize = 256
+
+# # all_refined_with_caption_256 = transforms.Resize((imsize, imsize))(all_refined_with_caption).float()
+# # all_refined_without_caption_256 = transforms.Resize((imsize, imsize))(all_refined_without_caption).float()
+
+# # torch.save(
+# #     all_refined_with_caption_256,
+# #     f"evals/{model_name}/{model_name}_all_refined_with_caption.pt"
+# # )
+# # torch.save(
+# #     all_refined_without_caption_256,
+# #     f"evals/{model_name}/{model_name}_all_refined_without_caption.pt"
+# # )
+
+# # print(f"Salvati: {all_refined_with_caption_256.shape}")
+
+
+# In[ ]:
+
+
+# # ╔══════════════════════════════════════════════════════════════════════════╗
+# # ║              CELLA NUOVA — ControlNet Refinement                        ║
+# # ╚══════════════════════════════════════════════════════════════════════════╝
+
+# import kornia
+# import numpy as np
+# from PIL import Image
+# from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline
+# from transformers import DPTFeatureExtractor, DPTForDepthEstimation
+
+# print("ENTERING CLAUDE PART")
+# # ── 0. Libera VRAM dai modelli MindEye2 (opzionale ma consigliato) ──────────
+# # Se hai poca VRAM, decommenta queste righe per spostare tutto su CPU
+# # model.to("cpu")
+# # diffusion_engine.to("cpu")
+# # clip_img_embedder.to("cpu")
+# # clip_text_model.to("cpu")
+# # autoenc.to("cpu")
+# gc.collect()
+# torch.cuda.empty_cache()
+
+# # ── 1. Carica i risultati salvati dal loop MindEye2 ─────────────────────────
+# all_recons_fullres = torch.load(
+#     f"evals/{model_name}/{model_name}_all_recons_fullres.pt"
+# )  # shape: [N, 3, 768, 768], range [0,1]
+
+# all_predcaptions = torch.load(
+#     f"evals/{model_name}/{model_name}_all_predcaptions.pt"
+# )  # array di N stringhe
+
+# print(f"Loaded {len(all_recons_fullres)} reconstructions")
+# print(f"Sample caption: '{all_predcaptions[0]}'")
+
+# # ── 2. Carica i modelli ControlNet ──────────────────────────────────────────
+# print("Loading depth estimator...")
+# depth_estimator = DPTForDepthEstimation.from_pretrained(
+#     "Intel/dpt-hybrid-midas"
+# ).to(device_0)
+# depth_estimator.eval().requires_grad_(False)
+# feature_extractor = DPTFeatureExtractor.from_pretrained("Intel/dpt-hybrid-midas")
+
+# print("Loading ControlNet models...")
+# controlnets = [
+#     ControlNetModel.from_pretrained(
+#         "diffusers/controlnet-depth-sdxl-1.0-small",  # 7x più leggero
+#         torch_dtype=torch.float16,
+#     ),
+#     ControlNetModel.from_pretrained(
+#         "diffusers/controlnet-canny-sdxl-1.0",
+#         torch_dtype=torch.float16,
+#     ),
+# ]
+
+# controlnet_pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
+#     "stabilityai/stable-diffusion-xl-base-1.0",
+#     controlnet=controlnets,
+#     torch_dtype=torch.float16,
+# )
+# # CPU offload: sposta i sottomoduli su GPU solo quando servono
+# controlnet_pipe.enable_model_cpu_offload()
+# print("ControlNet ready!")
+
+# # ── 3. Funzioni helper ───────────────────────────────────────────────────────
+# @torch.no_grad()
+# def get_depth_map(pil_img: Image.Image) -> Image.Image:
+#     inputs = feature_extractor(images=pil_img, return_tensors="pt").to(device_0)
+#     depth = depth_estimator(**inputs).predicted_depth          # [1, H, W]
+#     depth = torch.nn.functional.interpolate(
+#         depth.unsqueeze(1),
+#         size=pil_img.size[::-1],
+#         mode="bicubic",
+#         align_corners=False,
+#     ).squeeze().cpu().numpy()
+#     depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8) * 255
+#     return Image.fromarray(depth.astype(np.uint8)).convert("RGB")
+
+# import kornia
+
+# def get_canny_map(pil_img: Image.Image,
+#                   low: float = 0.05,
+#                   high: float = 0.15) -> Image.Image:
+#     """
+#     Kornia Canny: lavora su tensori, nessuna dipendenza da cv2.
+#     low/high sono soglie normalizzate [0,1] invece degli interi di OpenCV.
+#     """
+#     # PIL → tensore float [0,1] BCHW su device_0
+#     img_tensor = transforms.ToTensor()(pil_img.convert("RGB")).unsqueeze(0).to(device_0)
+
+#     # Canny: restituisce (magnitude, edges_binary)
+#     _, edges = kornia.filters.canny(
+#         img_tensor,
+#         low_threshold=low,
+#         high_threshold=high,
+#         kernel_size=(5, 5),
+#         sigma=(1.0, 1.0),
+#     )  # edges shape: [1, 1, H, W], valori 0/1
+
+#     # Converti in RGB PIL
+#     edges_np = (edges.squeeze().cpu().numpy() * 255).astype(np.uint8)
+#     return Image.fromarray(np.stack([edges_np] * 3, axis=-1))
+
+# def refine_with_controlnet(
+#     recon_tensor,           # CHW tensor [0,1]
+#     caption: str,
+#     controlnet_scale: float = 0.8,
+#     num_steps: int = 30,
+# ) -> torch.Tensor:          # restituisce CHW tensor [0,1]
+#     """
+#     Prende un tensore CHW [0,1] e la caption testuale,
+#     restituisce il tensore raffinato con ControlNet, stessa shape.
+#     """
+#     pil_orig = transforms.ToPILImage()(recon_tensor.float())
+#     pil_1024 = pil_orig.resize((1024, 1024), Image.LANCZOS)
+
+#     depth_map = get_depth_map(pil_1024)
+#     canny_map  = get_canny_map(pil_1024)
+
+#     refined_pil = controlnet_pipe(
+#         prompt=caption,
+#         negative_prompt="low quality, blurry, deformed, artifacts, watermark, hallucination",
+#         image=[depth_map, canny_map],
+#         num_inference_steps=num_steps,
+#         controlnet_conditioning_scale=[controlnet_scale,          # depth
+#                                        controlnet_scale * 0.8],   # canny
+#         guidance_scale=7.5,
+#         height=1024,
+#         width=1024,
+#     ).images[0]
+
+#     # Riporta alla dimensione originale e converti in tensore
+#     refined_pil = refined_pil.resize(pil_orig.size, Image.LANCZOS)
+#     return transforms.ToTensor()(refined_pil)   # CHW [0,1]
+
+# # ── 4. Loop di refinement ────────────────────────────────────────────────────
+# all_refined = None
+# os.makedirs(f"evals/{model_name}/images_refined", exist_ok=True)
+
+# for idx in tqdm(range(len(all_recons_fullres))):
+#     recon_tensor = all_recons_fullres[idx]          # CHW [0,1]
+#     caption      = str(all_predcaptions[idx])
+
+#     refined_tensor = refine_with_controlnet(
+#         recon_tensor=recon_tensor,
+#         caption=caption,
+#         controlnet_scale=0.8,   # ← iperparametro principale da esplorare
+#         num_steps=30,
+#     )
+
+#     # Accumula
+#     if all_refined is None:
+#         all_refined = refined_tensor[None]
+#     else:
+#         all_refined = torch.vstack((all_refined, refined_tensor[None]))
+
+#     # Salva confronto: Recon MindEye2 | ControlNet Refined
+#     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+#     fig.suptitle(caption.capitalize(), fontsize=12, wrap=True)
+
+#     axes[0].imshow(transforms.ToPILImage()(recon_tensor.float()))
+#     axes[0].set_title("MindEye2 Recon")
+#     axes[0].axis("off")
+
+#     axes[1].imshow(transforms.ToPILImage()(refined_tensor.float()))
+#     axes[1].set_title("ControlNet Refined")
+#     axes[1].axis("off")
+
+#     plt.tight_layout()
+#     plt.savefig(f"evals/{model_name}/images_refined/refined_img{idx}.png",
+#                 bbox_inches="tight", dpi=150)
+#     plt.close()
+
+# # ── 5. Salvataggio ───────────────────────────────────────────────────────────
+# imsize = 256
+# all_refined_256 = transforms.Resize((imsize, imsize))(all_refined).float()
+# torch.save(all_refined_256, f"evals/{model_name}/{model_name}_all_refined.pt")
+# print(f"Saved refined recons: {all_refined_256.shape}")
+
+
+# # if not utils.is_interactive():
+# #     sys.exit(0)
 
