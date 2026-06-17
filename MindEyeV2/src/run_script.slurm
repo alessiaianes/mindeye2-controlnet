@@ -27,34 +27,34 @@ export ACCELERATE_USE_CPU=False
 # ─────────────────────────────────────────────────────────────
 echo "===== [$(date)] START recon_inference ====="
 
-jupyter nbconvert --to script recon_inference.ipynb
-sed -i '/get_ipython/d' recon_inference.py
+# jupyter nbconvert --to script recon_inference.ipynb
+# sed -i '/get_ipython/d' recon_inference.py
 
-python recon_inference.py \
-    --data_path=datasets \
-    --cache_dir=datasets \
-    --model_name=final_subj01_pretrained_40sess_24bs \
-    --subj=1 \
-    --hidden_dim=4096 \
-    --n_blocks=4 \
-    --new_test
+# python recon_inference.py \
+#     --data_path=datasets \
+#     --cache_dir=datasets \
+#     --model_name=final_subj01_pretrained_40sess_24bs \
+#     --subj=1 \
+#     --hidden_dim=4096 \
+#     --n_blocks=4 \
+#     --new_test
 
-echo "===== [$(date)] END recon_inference ====="
+# echo "===== [$(date)] END recon_inference ====="
 
-# ─────────────────────────────────────────────────────────────
-# STEP 2 — enhanced_recon_inference
-# ─────────────────────────────────────────────────────────────
-echo "===== [$(date)] START enhanced_recon_inference ====="
+# # ─────────────────────────────────────────────────────────────
+# # STEP 2 — enhanced_recon_inference
+# # ─────────────────────────────────────────────────────────────
+# echo "===== [$(date)] START enhanced_recon_inference ====="
 
-jupyter nbconvert --to script enhanced_recon_inference.ipynb
-sed -i '/get_ipython/d' enhanced_recon_inference.py
+# jupyter nbconvert --to script enhanced_recon_inference.ipynb
+# sed -i '/get_ipython/d' enhanced_recon_inference.py
 
-python enhanced_recon_inference.py \
-    --model_name=final_subj01_pretrained_40sess_24bs \
-    --subj=1 \
-    --cache_dir=datasets
+# python enhanced_recon_inference.py \
+#     --model_name=final_subj01_pretrained_40sess_24bs \
+#     --subj=1 \
+#     --cache_dir=datasets
 
-echo "===== [$(date)] END enhanced_recon_inference ====="
+# echo "===== [$(date)] END enhanced_recon_inference ====="
 
 # ─────────────────────────────────────────────────────────────
 # STEP 3 — canny_recon_inference  (controlnet separato)
