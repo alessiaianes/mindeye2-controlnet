@@ -1,4 +1,4 @@
-name: controlnet6
+name: controlnet
 channels:
   - defaults
 dependencies:

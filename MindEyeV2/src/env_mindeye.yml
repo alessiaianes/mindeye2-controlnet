@@ -1,4 +1,4 @@
-name: myenv3
+name: mindeye
 channels:
   - conda-forge
   - defaults
