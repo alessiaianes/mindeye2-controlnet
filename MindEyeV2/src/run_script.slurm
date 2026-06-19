@@ -17,7 +17,7 @@ unset LD_LIBRARY_PATH
 unset PYTHONPATH
 
 source ~/.bashrc
-conda activate myenv
+conda activate myenv3
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export ACCELERATE_USE_CPU=False
@@ -59,8 +59,9 @@ echo "===== [$(date)] START recon_inference ====="
 # ─────────────────────────────────────────────────────────────
 # STEP 3 — canny_recon_inference  (controlnet separato)
 # ─────────────────────────────────────────────────────────────
-conda activate controlnet
+conda activate controlnet6
 echo "===== [$(date)] START canny_recon_inference ====="
+
 
 
 sed -i '/get_ipython/d' canny_recon_inference.py

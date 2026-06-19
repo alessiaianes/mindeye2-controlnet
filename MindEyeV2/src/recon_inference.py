@@ -22,7 +22,7 @@
 # ! wget -O datasets/wds/subj01/new_test/0.tar https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/wds/subj01/new_test/0.tar
 
 
-# ! wget -O {cache_dir}/zavychromaxl_v30.safetensors https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/zavychromaxl_v30.safetensors
+# ! wget -O datasets/zavychromaxl_v30.safetensors https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/zavychromaxl_v30.safetensors
 # ! wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/evals/all_images.pt
 
 

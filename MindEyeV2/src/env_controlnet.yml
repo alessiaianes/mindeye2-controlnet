@@ -1,4 +1,4 @@
-name: controlnet
+name: controlnet6
 channels:
   - defaults
 dependencies:
@@ -21,7 +21,7 @@ dependencies:
   - packaging=26.0
   - pip=26.1.1
   - pthread-stubs=0.3
-  - python=3.11.15
+  - python=3.11
   - readline=8.3
   - sqlite=3.53.2
   - tk=8.6.15
@@ -85,9 +85,7 @@ dependencies:
       - nvidia-cuda-runtime==13.0.96
       - nvidia-cuda-runtime-cu11==11.8.89
       - nvidia-cuda-runtime-cu12==12.1.105
-      - nvidia-cudnn-cu11==9.1.0.70
       - nvidia-cudnn-cu12==9.1.0.70
-      - nvidia-cudnn-cu13==9.20.0.48
       - nvidia-cufft==12.0.0.61
       - nvidia-cufft-cu11==10.9.0.58
       - nvidia-cufft-cu12==11.0.2.54
@@ -143,4 +141,4 @@ dependencies:
       - wcwidth==0.8.1
       - xformers==0.0.27.post2
       - yarl==1.24.2
-prefix: /home/alessia.ianes/.conda/envs/controlnet
+prefix: /home/alessia.ianes/.conda/envs/controlnet2
