@@ -4,6 +4,8 @@ slurms/
 dataset/
 datasets/
 evals/
+tables/
+figures/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -563,7 +563,7 @@ minibatch_size = 1
 num_samples_per_image = 1
 assert num_samples_per_image == 1
 
-save_images = True 
+save_images = False 
 os.makedirs(f"evals/{model_name}/images", exist_ok=True)
 
 if utils.is_interactive(): plotting=True
@@ -593,8 +593,8 @@ for module in diffusion_engine.modules():
             pass
 
 with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
-    # for batch in tqdm(range(0,len(np.unique(test_images_idx)),minibatch_size)): # uncomment this is for all images and comment the line right below
-    for batch in tqdm(range(0,10)): # choose how many images you want to output
+    for batch in tqdm(range(0,len(np.unique(test_images_idx)),minibatch_size)): # uncomment this is for all images and comment the line right below
+    # for batch in tqdm(range(0,10)): # choose how many images you want to output
 
         uniq_imgs = np.unique(test_images_idx)[batch:batch+minibatch_size]
         voxel = None

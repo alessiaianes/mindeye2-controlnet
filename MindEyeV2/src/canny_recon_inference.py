@@ -193,6 +193,7 @@ blip_question = (
 #     'coherent composition, lifelike scene'
 # )
 quality_tags = ", masterpiece, photorealistic, highly detailed, sharp focus, 8k resolution, realistic anatomy, natural proportions, symmetrical features, detailed eyes, realistic eyes, realistic fur, lifelike textures, correct solid geometry, intricate details, realistic materials, cinematic lighting, well-defined edges"
+all_blip2captions = []
 for idx in tqdm(range(len(all_recons))):
     recon = all_recons[idx].float()
     
@@ -229,7 +230,8 @@ for idx in tqdm(range(len(all_recons))):
         else:
             # Metodo di sicurezza generale nel caso tu cambiassi la domanda
             base_caption = base_caption.replace(blip_question, "").strip()
-        
+    
+    all_blip2captions.append(base_caption)
     # 3. Combina la caption con i tag di alta qualità
     enhanced_caption = base_caption + quality_tags
     
@@ -261,3 +263,8 @@ all_cn_256 = transforms.Resize((imsize, imsize))(all_cn).float()
 save_path  = f'evals/{model_name}/{model_name}_all_controlnet_canny.pt'
 torch.save(all_cn_256, save_path)
 print(f'Salvato: {all_cn_256.shape}  ->  {save_path}')
+
+
+caption_save_path = f'evals/{model_name}/{model_name}_all_blip2captions.pt'
+torch.save(all_blip2captions, caption_save_path)
+print(f'Salvato: {len(all_blip2captions)} caption -> {caption_save_path}')
