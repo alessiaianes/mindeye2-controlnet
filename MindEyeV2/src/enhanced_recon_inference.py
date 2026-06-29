@@ -302,8 +302,8 @@ def patched_discretization(*args, **kwargs):
     return original_discretization(*args, **kwargs).to(device_1)
 base_engine.sampler.discretization = patched_discretization
 
-# for img_idx in tqdm(range(len(all_recons))):
-for img_idx in tqdm(range(0, 10)):
+for img_idx in tqdm(range(len(all_recons))):
+# for img_idx in tqdm(range(0, 10)):
 
     with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
         with base_engine.ema_scope():

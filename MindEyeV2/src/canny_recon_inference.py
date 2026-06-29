@@ -13,6 +13,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from pytorch_lightning import seed_everything
 import textwrap
+from PIL import Image
 
 # ── [AGGIUNTO] Import per BLIP-2 ─────────────────────────────────────────
 from transformers import Blip2Processor, Blip2ForConditionalGeneration
@@ -175,15 +176,14 @@ out_dir = f'evals/{model_name}/controlnet_canny'
 os.makedirs(out_dir, exist_ok=True)
 
 # Definiamo la domanda per forzare BLIP a descrivere i dettagli
-blip_question = "Prompt: Provide a densely detailed and purely objective visual description of this image. Whether the main subject is a person, an animal, a building, food, or an inanimate object, explicitly describe its exact colors, textures, materials, shapes, actions and spatial arrangement. Accurately describe the background. STRICTLY list only concrete visible facts. DO NOT invent narratives, DO NOT infer emotions or actions, DO NOT mention specific places or dates. Caption:"
-# blip_question = (
-#     "Question: Describe precisely what you see in this photo. "
-#     "Include the main subject with its exact colors, textures, and shape; "
-#     "the spatial arrangement of visible elements; "
-#     "the background environment; "
-#     "and the lighting conditions. "
-#     "Report only objective visual facts. Answer:"
-# )
+# blip_question = "Prompt: Provide a densely detailed and purely objective visual description of this image. Whether the main subject is a person, an animal, a building, food, or an inanimate object, explicitly describe its exact colors, textures, materials, shapes, actions and spatial arrangement. Accurately describe the background. STRICTLY list only concrete visible facts. DO NOT invent anything. Caption:"
+blip_question = (
+    "Question: List every object, person, and animal visible in this image. "
+    "For each one describe: its color, its shape or appearance, "
+    "and its position in the scene. "
+    "Then describe the background environment. "
+    "Answer:"
+)
 
 
 # quality_tags = (
@@ -193,26 +193,33 @@ blip_question = "Prompt: Provide a densely detailed and purely objective visual 
 #     'coherent composition, lifelike scene'
 # )
 quality_tags = ", masterpiece, photorealistic, highly detailed, sharp focus, 8k resolution, realistic anatomy, natural proportions, symmetrical features, detailed eyes, realistic eyes, realistic fur, lifelike textures, correct solid geometry, intricate details, realistic materials, cinematic lighting, well-defined edges"
+all_blip2captions = []
 for idx in tqdm(range(len(all_recons))):
     recon = all_recons[idx].float()
     
-    # 1. Recupera l'immagine originale NSD
-    orig_image_pil = transforms.ToPILImage()(all_images[idx].float())
+    # # 1. Recupera l'immagine originale NSD
+    # orig_image_pil = transforms.ToPILImage()(all_images[idx].float())
     
-    # 2. Genera la caption dettagliata con BLIP-2
-    blip_inputs = blip_processor(orig_image_pil, text=blip_question, return_tensors="pt").to("cuda", torch.float16)
-    # blip_inputs = blip_processor(orig_image_pil, return_tensors="pt").to("cuda", torch.float16)
+    # # 2. Genera la caption dettagliata con BLIP-2
+    # blip_inputs = blip_processor(orig_image_pil, text=blip_question, return_tensors="pt").to("cuda", torch.float16)
+    # # blip_inputs = blip_processor(orig_image_pil, return_tensors="pt").to("cuda", torch.float16)
 
-    
+    # DOPO (brain-only — usa la ricostruzione MindEye2)
+    orig_image_pil = transforms.ToPILImage()(all_images[idx].float())  # tenuta solo per il plot
+    recon_pil      = transforms.ToPILImage()(recon).resize((224, 224), Image.LANCZOS)
+    blip_inputs    = blip_processor(recon_pil, text=blip_question, return_tensors="pt").to("cuda", torch.float16)
     
     with torch.no_grad():
         
         # Aggiungiamo min_new_tokens e repetition_penalty per forzare descrizioni lunghe
         generated_ids = blip_model.generate(
             **blip_inputs, 
-            max_new_tokens=100, 
-            min_new_tokens=20,
-            repetition_penalty=1.1
+            max_new_tokens=80, 
+            min_new_tokens=10,
+            num_beams=5,
+            repetition_penalty=1.5,
+            no_repeat_ngram_size=3,
+            early_stopping=True
         )
         base_caption = blip_processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
 
@@ -223,7 +230,8 @@ for idx in tqdm(range(len(all_recons))):
         else:
             # Metodo di sicurezza generale nel caso tu cambiassi la domanda
             base_caption = base_caption.replace(blip_question, "").strip()
-        
+    
+    all_blip2captions.append(base_caption)
     # 3. Combina la caption con i tag di alta qualità
     enhanced_caption = base_caption + quality_tags
     
@@ -255,3 +263,8 @@ all_cn_256 = transforms.Resize((imsize, imsize))(all_cn).float()
 save_path  = f'evals/{model_name}/{model_name}_all_controlnet_canny.pt'
 torch.save(all_cn_256, save_path)
 print(f'Salvato: {all_cn_256.shape}  ->  {save_path}')
+
+
+caption_save_path = f'evals/{model_name}/{model_name}_all_blip2captions.pt'
+torch.save(all_blip2captions, caption_save_path)
+print(f'Salvato: {len(all_blip2captions)} caption -> {caption_save_path}')

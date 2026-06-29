@@ -4,7 +4,26 @@
 # In[ ]:
 
 
-# conda env create -f env.yml --> from CLI
+# conda env create -f mindeye_env_config.yml --> from CLI
+# conda env create -f controlnet_env_config.yml --> from CLI
+
+
+# # Uncomment ONCE just to download the necessary files
+
+# ! mkdir -p datasets
+# ! wget -O datasets/coco_images_224_float16.hdf5 https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/coco_images_224_float16.hdf5
+# ! wget -O datasets/unclip6_epoch0_step110000.ckpt https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/unclip6_epoch0_step110000.ckpt
+# ! wget -O datasets/betas_all_subj01_fp32_renorm.hdf5 https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/betas_all_subj01_fp32_renorm.hdf5
+# ! wget -O datasets/sd_image_var_autoenc.pth https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/sd_image_var_autoenc.pth
+# ! wget -O datasets/bigG_to_L_epoch8.pth https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/bigG_to_L_epoch8.pth
+# ! mkdir -p train_logs/final_subj01_pretrained_40sess_24bs
+# ! wget -O train_logs/final_subj01_pretrained_40sess_24bs/last.pth https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/train_logs/final_subj01_pretrained_40sess_24bs/last.pth
+# ! mkdir -p datasets/wds/subj01/new_test
+# ! wget -O datasets/wds/subj01/new_test/0.tar https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/wds/subj01/new_test/0.tar
+
+
+# ! wget -O datasets/zavychromaxl_v30.safetensors https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/zavychromaxl_v30.safetensors
+# ! wget -O evals/all_images.pt https://huggingface.co/datasets/pscotti/mindeyev2/resolve/main/evals/all_images.pt
 
 
 # In[ ]:
@@ -544,7 +563,7 @@ minibatch_size = 1
 num_samples_per_image = 1
 assert num_samples_per_image == 1
 
-save_images = True 
+save_images = False 
 os.makedirs(f"evals/{model_name}/images", exist_ok=True)
 
 if utils.is_interactive(): plotting=True
@@ -574,8 +593,8 @@ for module in diffusion_engine.modules():
             pass
 
 with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.float16):
-    # for batch in tqdm(range(0,len(np.unique(test_images_idx)),minibatch_size)): # uncomment this is for all images and comment the line right below
-    for batch in tqdm(range(0,10)): # choose how many images you want to output
+    for batch in tqdm(range(0,len(np.unique(test_images_idx)),minibatch_size)): # uncomment this is for all images and comment the line right below
+    # for batch in tqdm(range(0,10)): # choose how many images you want to output
 
         uniq_imgs = np.unique(test_images_idx)[batch:batch+minibatch_size]
         voxel = None
