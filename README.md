@@ -1,6 +1,6 @@
 # Decoding the Trade-off between Perceptual Realism and Neural Fidelity in fMRI-to-Image Refinement
 
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg)](https://pytorch.org/)
 
 This repository contains the official implementation and experimental code for our project **"Decoding the Trade-off between Perceptual Realism and Neural Fidelity in fMRI-to-Image Refinement"**.
