@@ -30,7 +30,8 @@ mindeye2-controlnet/
 │       ├── env_mindeye.yml                # Environment config file for MindEye2
 │       ├── final_evaluations.ipynb        # Final summary and visualizations
 │       ├── recon_inference.ipynb          # Base MindEye2 inference notebook
-│       └── run_script.slurm               # Main SLURM script to execute the project - adjusted to work on University cluster
+│       ├── run_script.slurm               # Main SLURM script to execute the project - adjusted to work on University cluster
+│       ├── .gitignore                     # gitignore file
         └── ...                            # Other original MindEye2 files (unmodified)
 └── README.md
 
