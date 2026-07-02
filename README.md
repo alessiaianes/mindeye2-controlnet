@@ -31,6 +31,7 @@ mindeye2-controlnet/
 │       ├── final_evaluations.ipynb        # Final summary and visualizations
 │       ├── recon_inference.ipynb          # Base MindEye2 inference notebook
 │       └── run_script.slurm               # Main SLURM script to execute the project - adjusted to work on University cluster
+        └── ...                            # Other original MindEye2 files (unmodified)
 └── README.md
 
 ```
