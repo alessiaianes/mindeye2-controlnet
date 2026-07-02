@@ -21,7 +21,7 @@ We compare two refinement strategies, both applied to the same MindEye2 base rec
 
 ## 📊 Key Findings
 
-Quantitative evaluation on the **Natural Scenes Dataset (NSD)** (Subject 1, 982 test images) reveals a consistent trade-off between perceptual quality and neural fidelity:
+Quantitative evaluation on the **Natural Scenes Dataset (NSD)** (Subject 1) reveals a consistent trade-off between perceptual quality and neural fidelity:
 
 | Metric | MindEye2 baseline | SDXL Enhanced | ControlNet (Canny) |
 |---|---|---|---|
